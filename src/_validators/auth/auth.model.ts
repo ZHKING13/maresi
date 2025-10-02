@@ -13,9 +13,9 @@ export type ICurrentSystemUser = Pick<
   | 'id'
   | 'firstName'
   | 'lastName'
+  | 'phoneNumber'
   | 'email'
   | 'newEmail'
-  | 'type'
   | 'status'
   | 'image'
 >;
@@ -60,7 +60,7 @@ export interface IAuthenticatedRequestFromEmailJwt extends Request {
 }
 
 export interface IRegisterUserBody
-  extends Pick<User, 'firstName' | 'lastName' | 'email'> {
+  extends Pick<User, 'firstName' | 'lastName' | 'email' | 'phoneNumber' | 'dateOfBirth'> {
   password: string;
 }
 
@@ -98,10 +98,14 @@ export interface ISendOtpEmailBody {
 
 export interface IVerifyOTPBody {
   otpCode: number;
-  email: string;
+  phoneNumber: string;
+}
+export interface IVerifyEmailOTPBody {
+  otpCode: number;
+   email: string;
 }
 
-export interface IResetPasswordBody extends IVerifyOTPBody {
+export interface IResetPasswordBody extends IVerifyEmailOTPBody {
   newPassword: string;
   confirmNewPassword: string;
 }

@@ -29,13 +29,18 @@ export class UserClient {
     firstName,
     lastName,
     email,
-  }: Pick<User, 'firstName' | 'lastName' | 'email'>): Promise<User> {
+    phoneNumber,
+    dateOfBirth,
+  }: Pick<User, 'firstName' | 'lastName' | 'email' | 'phoneNumber' | 'dateOfBirth'>): Promise<User> {
     try {
       const user = await this.prisma.user.create({
         data: {
           firstName,
           lastName,
           email: email.toLowerCase(),
+          phoneNumber, 
+          dateOfBirth,
+
         },
       });
 
@@ -207,7 +212,7 @@ export class UserClient {
         lastName: true,
         email: true,
         image: true,
-        type: true,
+        phoneNumber: true,
       },
     });
   }

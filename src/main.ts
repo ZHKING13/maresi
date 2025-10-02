@@ -6,7 +6,7 @@ import { SwaggerTheme, SwaggerThemeNameEnum } from 'swagger-themes';
 import { SWAGGER_API_ENDPOINT } from './_middlewares/routes';
 import { Logger } from '@nestjs/common';
 
-async function bootstrap(): Promise<void> {
+async function bootstrap(): Promise<void> {  
   const app = await NestFactory.create(AppModule);
   const port = process.env.PORT ?? 3000;
 
@@ -21,8 +21,8 @@ async function bootstrap(): Promise<void> {
 
   // https://docs.nestjs.com/fundamentals/lifecycle-events#application-shutdown
   app.enableShutdownHooks();
-
-  // Swagger config
+ 
+  // Swagger 
   const config = new DocumentBuilder()
     .setTitle('NestJS Starter Kit 🚀 API Documentation')
     .setDescription(

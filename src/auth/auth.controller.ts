@@ -271,13 +271,13 @@ export class AuthController {
   @Post(AUTH_PATHS.POST_VERIFY_OTP)
   @HttpCode(HttpStatus.OK)
   public async verifyOtp(
-    @Body() { otpCode, email }: VerifyOTPBodyDto,
+    @Body() { otpCode, phoneNumber }: VerifyOTPBodyDto,
   ): Promise<IApiResponse<boolean>> {
     return {
       message: 'success',
       data: await this.authService.verifyOtpOrThrow({
         otpCode,
-        email,
+        phoneNumber,
       }),
     };
   }

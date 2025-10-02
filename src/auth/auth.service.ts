@@ -50,6 +50,8 @@ export class AuthService {
       lastName: registerPayload.lastName,
       email: registerPayload.email,
       password: registerPayload.password,
+      phoneNumber: registerPayload.phoneNumber,
+      dateOfBirth: registerPayload.dateOfBirth,
     });
 
     Logger.log(`AuthService: user with email: ${createdUser.email} created`);
@@ -227,18 +229,19 @@ export class AuthService {
       id: user.id,
       email: user.email,
       firstName: user.firstName,
-      type: user.type,
+     phoneNumber: user.phoneNumber,
       apiEndPoint: AUTH_PATHS.POST_VERIFY_EMAIL_FOR_NEW_USER,
     });
   }
 
-  // Send verify email or throw
+  // Send verify sms or throw
   public async sendVerifyEmailOrThrow({
     id,
     email,
     apiEndPoint,
-    type,
-  }: Pick<User, 'id' | 'email' | 'firstName' | 'type'> & {
+    phoneNumber
+   
+  }: Pick<User, 'id' | 'email' | 'firstName' | 'phoneNumber'> & {
     apiEndPoint:
       | AUTH_PATHS.POST_VERIFY_EMAIL_FOR_NEW_USER
       | AUTH_PATHS.POST_VERIFY_NEW_EMAIL;
@@ -384,7 +387,7 @@ export class AuthService {
       id: userId,
       email: newEmail ?? '',
       firstName: user.firstName,
-      type: user.type,
+     phoneNumber: user.phoneNumber,
       apiEndPoint: AUTH_PATHS.POST_VERIFY_NEW_EMAIL,
     });
   }
@@ -420,7 +423,7 @@ export class AuthService {
       id: userId,
       email: newEmail ?? '',
       firstName: user.firstName,
-      type: user.type,
+      phoneNumber: user.phoneNumber,
       apiEndPoint: AUTH_PATHS.POST_VERIFY_NEW_EMAIL,
     });
   }
@@ -449,8 +452,8 @@ export class AuthService {
       return;
     }
 
-    const otpSecret = await this.otpAndSecretService.getOTPAndSecretByEmail({
-      email,
+    const otpSecret = await this.otpAndSecretService.getOTPAndSecretByMsisdn({
+      phoneNumber: user.phoneNumber,
     });
 
     const maxRequestCount: number = 3;
@@ -512,7 +515,7 @@ export class AuthService {
     // save otp secret to database
     await this.otpAndSecretService.createOrUpdateOtpAndSecretOrThrow(
       {
-        email,
+        phoneNumber: user.phoneNumber,
         secret: oTPSecret,
       },
       {
@@ -535,14 +538,14 @@ export class AuthService {
   public async verifyOtpOrThrow(
     {
       otpCode,
-      email,
+      phoneNumber,
     }: {
       otpCode: number;
-      email: string;
+      phoneNumber: string;
     },
     isResetingPassword = false,
   ): Promise<boolean> {
-    const user = await this.userService.getUserByEmailOrNull(email);
+    const user = await this.userService.getUserByEmailOrNull(phoneNumber);
 
     if (!user) {
       return Promise.reject(
@@ -550,8 +553,8 @@ export class AuthService {
       );
     }
 
-    const otpSecret = await this.otpAndSecretService.getOTPAndSecretByEmail({
-      email,
+    const otpSecret = await this.otpAndSecretService.getOTPAndSecretByMsisdn({
+      phoneNumber,
     });
 
     if (!otpSecret) {
@@ -587,7 +590,7 @@ export class AuthService {
       // save otp secret to database
       await this.otpAndSecretService.createOrUpdateOtpAndSecretOrThrow(
         {
-          email,
+          phoneNumber,
           secret: otpSecret.secret,
         },
         {
@@ -608,7 +611,7 @@ export class AuthService {
       shouldIncremnetOtpCodeRetryCounter = true;
       await this.otpAndSecretService.createOrUpdateOtpAndSecretOrThrow(
         {
-          email,
+          phoneNumber,
           secret: otpSecret.secret,
         },
         {
@@ -645,7 +648,7 @@ export class AuthService {
     await this.verifyOtpOrThrow(
       {
         otpCode,
-        email,
+        phoneNumber: user.phoneNumber,
       },
       true,
     );

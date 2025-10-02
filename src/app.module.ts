@@ -53,7 +53,7 @@ import { MinioModule } from './minio/minio.module';
     RefreshTokenModule,
     OtpAndSecretModule,
     PostModule,
-    MinioModule
+    // MinioModule
   ],
   controllers: [AppController],
   providers: [

@@ -39,7 +39,7 @@ export class RolesGuard implements CanActivate {
       const userRole = await this.prisma.user.findUniqueOrThrow({
         where: { id: user.id },
         select: {
-          type: true,
+          enabledHost: true,
           administrator: {
             select: {
               role: {
@@ -55,18 +55,17 @@ export class RolesGuard implements CanActivate {
       });
 
       // Declare assignedRole variable to store the user's assignedRole
-      let assignedRole: ALL_ROLES_ENUM;
+      let assignedRole: ALL_ROLES_ENUM | "HOST" | "CLIENT";
 
       // Assign assignedRole
       if (userRole.administrator !== null) {
         assignedRole = userRole.administrator.role.name;
       } else {
-        assignedRole = userRole.type;
+        assignedRole = user.enabledHost ? 'HOST' : 'CLIENT';
       }
       request.user = {
         ...request.user,
         role: assignedRole,
-        userType: userRole.type,
       };
 
       return requiredRoles.some((role) => assignedRole === role);

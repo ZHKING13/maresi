@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { SetMetadata } from '@nestjs/common';
-import { ROLES_ENUM, UserType } from '@prisma/client';
+import { ROLES_ENUM,  } from '@prisma/client';
 
-export type ALL_ROLES_ENUM = ROLES_ENUM | UserType;
+export type ALL_ROLES_ENUM = ROLES_ENUM ;
 
 // If you changed here make sure to change the (rolesHierarchy) in src/guards/roles.guard.ts
 export const ALL_ROLES: Record<ALL_ROLES_ENUM, ALL_ROLES_ENUM> = {
-  ...UserType,
+ 
   ...ROLES_ENUM,
 };
 

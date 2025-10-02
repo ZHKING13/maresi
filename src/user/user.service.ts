@@ -21,7 +21,9 @@ export class UserService {
     lastName,
     email,
     password: plainTextPassword,
-  }: Pick<User, 'firstName' | 'lastName' | 'email'> & {
+    phoneNumber,
+    dateOfBirth,
+  }: Pick<User, 'firstName' | 'lastName' | 'email' | 'phoneNumber' | 'dateOfBirth'> & {
     password: string;
   }): Promise<User> {
     await this.checkIfUserExistsByEmail(email);
@@ -30,6 +32,8 @@ export class UserService {
       firstName,
       lastName,
       email,
+      phoneNumber,
+      dateOfBirth
     });
 
     await this.passwordService.hashThenCreateOrUpdatePassword({
