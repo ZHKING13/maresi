@@ -11,18 +11,18 @@ export class OtpAndSecretClient {
   constructor(private readonly prisma: PrismaService) {}
 
   // Get OTPAndSecret by email
-  public async getOTPAndSecretBySMS({
-    phoneNumber,
-  }: Pick<OTPAndSecret, 'phoneNumber'>): Promise<OTPAndSecret | null> {
+  public async getOTPAndSecretByContact({
+    contact,
+  }: Pick<OTPAndSecret, 'contact'>): Promise<OTPAndSecret | null> {
     const oTPAndSecret = await this.prisma.oTPAndSecret.findUnique({
-      where: { phoneNumber },
+      where: { contact },
     });
     return oTPAndSecret;
   }
 
   // Create or update OTPAndSecret or throw
   public async createOrUpdateOtpAndSecretOrThrow(
-    { phoneNumber, secret }: Pick<OTPAndSecret, 'phoneNumber' | 'secret'>,
+    { contact, secret }: Pick<OTPAndSecret, 'contact' | 'secret'>,
     {
       shouldIncremnetRequestSecretCounter = false,
       shouldResetRequestSecretCounter = false,
@@ -40,7 +40,7 @@ export class OtpAndSecretClient {
     try {
       await this.prisma.oTPAndSecret.upsert({
         create: {
-          phoneNumber,
+          contact,
           secret,
           otpSecretRequestCount: 1,
         },
@@ -79,7 +79,7 @@ export class OtpAndSecretClient {
             ? { otpCodeRetryCount: 0 }
             : {}),
         },
-        where: { phoneNumber },
+        where: { contact },
       });
     } catch (e) {
       Logger.error(e, 'OTPAndSecretClient: createOrUpdateOTPAndSecret');

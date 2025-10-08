@@ -6,6 +6,7 @@ import {
   IRefreshTokenResponse,
   IRegisterUserBody,
   IResetPasswordBody,
+  ISendOtpContactBody,
   ISendOtpEmailBody,
   ITokens,
   VerifyEmailJwtPayload,
@@ -31,6 +32,7 @@ import verifyEmailEdm from 'src/email/assets/verifyEmailTemplate';
 import { OtpAndSecretService } from 'src/otp-and-secret/otp-and-secret.service';
 import { authenticator } from 'otplib';
 import resetPasswordEdm from 'src/email/assets/resetPasswordEmailTemplate';
+import { SmsService } from 'src/sms/sms.service';
 
 @Injectable()
 export class AuthService {
@@ -41,6 +43,7 @@ export class AuthService {
     private readonly passwordService: PasswordService,
     private readonly emailService: EmailService,
     private readonly otpAndSecretService: OtpAndSecretService,
+    private readonly smsService: SmsService,
   ) {}
 
   // Register
@@ -54,25 +57,37 @@ export class AuthService {
       dateOfBirth: registerPayload.dateOfBirth,
     });
 
-    Logger.log(`AuthService: user with email: ${createdUser.email} created`);
+    Logger.log(`AuthService: user with id: ${createdUser.id} created`);
 
-    // send verify email for new user
-    await this.sendVerifyEmailForNewUser({
-      email: registerPayload.email,
-    });
+    // Envoyer la vérification via email ou SMS selon la méthode fournie
+    if (createdUser.email) {
+      await this.sendVerifyEmailForNewUser({
+        email: createdUser.email,
+      });
+    } else if (createdUser.phoneNumber) {
+      await this.sendVerifySmsForNewUser({
+        phoneNumber: createdUser.phoneNumber,
+      });
+    }
 
     return createdUser;
   }
 
   // Login
   public async login(loginPayload: ILoginBody): Promise<ILoginUserResponse> {
-    const user = await this.userService.getUserByEmailOrNull(
-      loginPayload.email,
-    );
+    // Vérifier si c'est un email ou un numéro de téléphone
+    let user: User | null = null;
+
+    if (loginPayload.email!.includes('@')) {
+      user = await this.userService.getUserByEmailOrNull(loginPayload.email);
+    } else {
+      user = await this.userService.getUserByPhoneNumberOrNull(
+        loginPayload.email,
+      );
+    }
 
     if (!user) {
-      Logger.error(`user with email: ${loginPayload.email} not found`);
-
+      Logger.error(`user with identifier: ${loginPayload.email} not found`);
       return Promise.reject(new UnauthorizedException(`AuthService: login1`));
     }
 
@@ -82,8 +97,7 @@ export class AuthService {
     );
 
     if (!userPassword) {
-      Logger.error(`user password with email: ${loginPayload.email} not found`);
-
+      Logger.error(`user password with id: ${user.id} not found`);
       return Promise.reject(new UnauthorizedException(`AuthService: login2`));
     }
 
@@ -94,12 +108,13 @@ export class AuthService {
     });
 
     if (!passwordMatches) {
-      Logger.error(`user password with email: ${loginPayload.email} not match`);
-
+      Logger.error(`user password with id: ${user.id} not match`);
       return Promise.reject(new UnauthorizedException(`AuthService: login3`));
     }
 
-    const tokens = await this.generateTokens(user.id, user.email);
+    // Générer le token avec l'identifiant approprié (email ou téléphone)
+    const contactIdentifier = user.email || user.phoneNumber || '';
+    const tokens = await this.generateTokens(user.id, contactIdentifier);
 
     await this.refreshTokenService.createOrUpdateRefreshToken({
       userId: user.id,
@@ -162,7 +177,10 @@ export class AuthService {
       );
     }
 
-    const tokens = await this.generateTokens(user.id, user.email);
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email ? user.email : user.phoneNumber ? user.phoneNumber : '',
+    );
 
     await this.refreshTokenService.createOrUpdateRefreshToken({
       userId: user.id,
@@ -229,7 +247,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       firstName: user.firstName,
-     phoneNumber: user.phoneNumber,
+      phoneNumber: user.phoneNumber,
       apiEndPoint: AUTH_PATHS.POST_VERIFY_EMAIL_FOR_NEW_USER,
     });
   }
@@ -239,8 +257,7 @@ export class AuthService {
     id,
     email,
     apiEndPoint,
-    phoneNumber
-   
+    phoneNumber,
   }: Pick<User, 'id' | 'email' | 'firstName' | 'phoneNumber'> & {
     apiEndPoint:
       | AUTH_PATHS.POST_VERIFY_EMAIL_FOR_NEW_USER
@@ -257,7 +274,7 @@ export class AuthService {
         : null;
 
     await this.emailService.sendEmailOrThrow({
-      to: [email],
+      to: [email ?? ''],
       subject: 'Verify your email',
       html: verifyEmailEdm(
         `${process.env.FRONTEND_BASE_URL}/auth/${sendEmailSubPath}?token=${verifyEmailToken}&email=${email}`,
@@ -274,7 +291,7 @@ export class AuthService {
   }: Pick<User, 'id' | 'email'>): Promise<string> {
     const jwtPayload: VerifyEmailJwtPayload = {
       sub: id,
-      email: email.toLowerCase(),
+      email: email!.toLowerCase(),
     };
 
     return this.jwtService.signAsync(jwtPayload, {
@@ -387,7 +404,7 @@ export class AuthService {
       id: userId,
       email: newEmail ?? '',
       firstName: user.firstName,
-     phoneNumber: user.phoneNumber,
+      phoneNumber: user.phoneNumber,
       apiEndPoint: AUTH_PATHS.POST_VERIFY_NEW_EMAIL,
     });
   }
@@ -444,16 +461,31 @@ export class AuthService {
     return `Password updated successfully`;
   }
 
-  // Send otp email
-  public async sendOtpEmail({ email }: ISendOtpEmailBody): Promise<void> {
-    const user = await this.userService.getUserByEmailOrNull(email);
+  // Méthode générique pour envoyer un OTP par email ou SMS
+  public async sendOtpContact({
+    contact,
+    isEmail,
+  }: ISendOtpContactBody): Promise<void> {
+    // Déterminer si c'est un email ou un numéro de téléphone
+    const isEmailContact =
+      isEmail !== undefined ? isEmail : contact.includes('@');
+
+    // Récupérer l'utilisateur par le bon moyen selon le type de contact
+    const user = isEmailContact
+      ? await this.userService.getUserByEmailOrNull(contact)
+      : await this.userService.getUserByPhoneNumberOrNull(contact);
 
     if (!user) {
       return;
     }
 
-    const otpSecret = await this.otpAndSecretService.getOTPAndSecretByMsisdn({
-      phoneNumber: user.phoneNumber,
+    // Récupérer le contact principal de l'utilisateur
+    const userContact = isEmailContact
+      ? contact
+      : user.phoneNumber || user.email!;
+
+    const otpSecret = await this.otpAndSecretService.getOTPAndSecretByContact({
+      contact: userContact,
     });
 
     const maxRequestCount: number = 3;
@@ -469,7 +501,7 @@ export class AuthService {
       ) {
         if (otpSecret.otpSecretRequestCount >= maxRequestCount) {
           return Promise.reject(
-            new ForbiddenException('AuthService: sendOTPEmail1'),
+            new ForbiddenException('AuthService: sendOTPContact1'),
           );
         } else {
           shouldIncremnetRequestSecretCounter = true;
@@ -482,15 +514,22 @@ export class AuthService {
       }
     }
 
-    // AuthenticatorOptions interface extends TOTPOptions which in turn extends HOTPOptions
-    // https://www.npmjs.com/package/otplib#authenticator-options
-    // https://www.npmjs.com/package/otplib#hotp-options
-    // https://www.npmjs.com/package/otplib#totp-options
-    authenticator.options = {
-      digits: 4, // use The options setter; we need otp code to be 4 digits
-      step: 1800, // half an hour
-      window: 1,
-    };
+    // Options différentes selon la méthode d'envoi
+    if (isEmailContact) {
+      // Pour l'email, utiliser un code à 4 chiffres
+      authenticator.options = {
+        digits: 4, // use The options setter; we need otp code to be 4 digits
+        step: 1800, // half an hour
+        window: 1,
+      };
+    } else {
+      // Pour le SMS, utiliser un code à 6 chiffres
+      authenticator.options = {
+        digits: 6,
+        step: 600, // 10 minutes
+        window: 1,
+      };
+    }
 
     let oTPSecret: string, otpCode: string, otpCodeInteger: number;
 
@@ -498,24 +537,24 @@ export class AuthService {
       // Generate OTP secret
       oTPSecret = authenticator.generateSecret();
 
-      // Generate OTP 4-digit code
+      // Generate OTP code
       otpCode = authenticator.generate(oTPSecret);
 
       // Parse OTP code to integer
       otpCodeInteger = parseInt(otpCode);
-    } while (otpCode[0] === '0'); // retry if otp code starts with 0 (causing issues in email template and when sending it as json in request)
+    } while (otpCode[0] === '0'); // retry if otp code starts with 0
 
     // make sure otp code is integer just in case
     if (isNaN(otpCodeInteger)) {
       return Promise.reject(
-        new ForbiddenException('AuthService: sendOTPEmail2'),
+        new ForbiddenException('AuthService: sendOTPContact2'),
       );
     }
 
     // save otp secret to database
     await this.otpAndSecretService.createOrUpdateOtpAndSecretOrThrow(
       {
-        phoneNumber: user.phoneNumber,
+        contact: userContact,
         secret: oTPSecret,
       },
       {
@@ -527,25 +566,41 @@ export class AuthService {
       },
     );
 
-    return this.emailService.sendEmailOrThrow({
-      to: [email],
-      subject: `Reset Your Password, ${user.firstName}`,
-      html: resetPasswordEdm(otpCodeInteger),
-    });
+    // Envoyer l'OTP via email ou SMS selon le type de contact
+    if (isEmailContact) {
+      return this.emailService.sendEmailOrThrow({
+        to: [contact],
+        subject: `Reset Your Password, ${user.firstName}`,
+        html: resetPasswordEdm(otpCodeInteger),
+      });
+    } else {
+      return this.smsService.sendVerificationCode(contact, otpCode);
+    }
+  }
+
+  // Send otp email - maintenu pour la compatibilité
+  public async sendOtpEmail({ email }: ISendOtpEmailBody): Promise<void> {
+    return this.sendOtpContact({ contact: email, isEmail: true });
   }
 
   // Verify otp or throw
   public async verifyOtpOrThrow(
     {
       otpCode,
-      phoneNumber,
+      contact,
     }: {
       otpCode: number;
-      phoneNumber: string;
+      contact: string;
     },
     isResetingPassword = false,
   ): Promise<boolean> {
-    const user = await this.userService.getUserByEmailOrNull(phoneNumber);
+    // Déterminer si c'est un email ou un numéro de téléphone
+    const isEmailContact = contact.includes('@');
+
+    // Récupérer l'utilisateur par le bon moyen selon le type de contact
+    const user = isEmailContact
+      ? await this.userService.getUserByEmailOrNull(contact)
+      : await this.userService.getUserByPhoneNumberOrNull(contact);
 
     if (!user) {
       return Promise.reject(
@@ -553,8 +608,8 @@ export class AuthService {
       );
     }
 
-    const otpSecret = await this.otpAndSecretService.getOTPAndSecretByMsisdn({
-      phoneNumber,
+    const otpSecret = await this.otpAndSecretService.getOTPAndSecretByContact({
+      contact,
     });
 
     if (!otpSecret) {
@@ -590,7 +645,7 @@ export class AuthService {
       // save otp secret to database
       await this.otpAndSecretService.createOrUpdateOtpAndSecretOrThrow(
         {
-          phoneNumber,
+          contact,
           secret: otpSecret.secret,
         },
         {
@@ -611,7 +666,7 @@ export class AuthService {
       shouldIncremnetOtpCodeRetryCounter = true;
       await this.otpAndSecretService.createOrUpdateOtpAndSecretOrThrow(
         {
-          phoneNumber,
+          contact,
           secret: otpSecret.secret,
         },
         {
@@ -645,10 +700,12 @@ export class AuthService {
       plainTextPassword: newPassword,
     });
 
+    // Utiliser le contact approprié pour la vérification
+    const contact = user.phoneNumber || user.email!;
     await this.verifyOtpOrThrow(
       {
         otpCode,
-        phoneNumber: user.phoneNumber,
+        contact,
       },
       true,
     );
@@ -657,5 +714,24 @@ export class AuthService {
       userId: user.id,
       plainTextPassword: newPassword,
     });
+  }
+  // Méthode pour envoyer un OTP par SMS
+  private async sendVerifySmsForNewUser({
+    phoneNumber,
+  }: {
+    phoneNumber: string;
+  }): Promise<string> {
+    // Utiliser la méthode générique pour envoyer un OTP
+    await this.sendOtpContact({
+      contact: phoneNumber,
+      isEmail: false,
+    });
+
+    return `Verification SMS sent successfully to ${phoneNumber}`;
+  }
+
+  private generateOTP(): string {
+    const otpCode = Math.floor(100000 + Math.random() * 900000);
+    return otpCode.toString().padStart(6, '0');
   }
 }

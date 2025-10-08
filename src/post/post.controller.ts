@@ -16,6 +16,7 @@ import { IApiResponse } from 'src/_validators/global/global.model';
 import { Post as post } from '@prisma/client';
 import { GlobalIdParamDto } from 'src/_validators/global/global.dto';
 import { RolesGuard } from 'src/_guards/roles.guard';
+import { KycGuard } from 'src/_guards/kyc.guard';
 import { POST_PATHS } from 'src/_paths/post';
 import { ApiTags } from '@nestjs/swagger';
 import { PublicEndpoint } from 'src/_decorators/setters/publicEndpoint.decorator';
@@ -28,6 +29,7 @@ export class PostController {
   constructor(private readonly postService: PostService) {}
 
   // Create post
+  @UseGuards(KycGuard)
   @Post()
   public async createPost(
     @CurrentSystemUser() { id }: ICurrentSystemUser,

@@ -6,18 +6,18 @@ import { OTPAndSecret } from '@prisma/client';
 export class OtpAndSecretService {
   constructor(private readonly optAndSecretClient: OtpAndSecretClient) {}
 
-  // Get OTPAndSecret by phoneNumber
-  public async getOTPAndSecretByMsisdn({
-    phoneNumber,
-  }: Pick<OTPAndSecret, 'phoneNumber'>): Promise<OTPAndSecret | null> {
-    return this.optAndSecretClient.getOTPAndSecretBySMS({
-      phoneNumber,
+  // Get OTPAndSecret by contact
+  public async getOTPAndSecretByContact({
+    contact,
+  }: Pick<OTPAndSecret, 'contact'>): Promise<OTPAndSecret | null> {
+    return this.optAndSecretClient.getOTPAndSecretByContact({
+      contact,
     });
   }
 
   // Create or update OtpAndSecret or throw
   public async createOrUpdateOtpAndSecretOrThrow(
-    { phoneNumber, secret }: Pick<OTPAndSecret, 'phoneNumber' | 'secret'>,
+    { contact, secret }: Pick<OTPAndSecret, 'contact' | 'secret'>,
     {
       shouldIncremnetRequestSecretCounter = false,
       shouldResetRequestSecretCounter = false,
@@ -34,7 +34,7 @@ export class OtpAndSecretService {
   ): Promise<void> {
     return this.optAndSecretClient.createOrUpdateOtpAndSecretOrThrow(
       {
-        phoneNumber,
+        contact,
         secret,
       },
       {

@@ -26,9 +26,13 @@ import {
   nameSpacedJwtAndPassportConfig,
   nameSpacedDatabaseConfig,
   nameSpacedEmailConfig,
+  nameSpacedNotificationConfig,
 } from './_config';
 import { validateEnvironment } from './_utils/env-validation.util';
 import { MinioModule } from './minio/minio.module';
+import { ResidenceModule } from './residence/residence.module';
+import { KycModule } from './kyc/kyc.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -39,20 +43,24 @@ import { MinioModule } from './minio/minio.module';
       load: [
         nameSpacedAppConfig,
         nameSpacedJwtAndPassportConfig,
+        nameSpacedNotificationConfig,
         nameSpacedDatabaseConfig,
         nameSpacedEmailConfig,
       ],
+
       envFilePath: [`.env.${process.env.NODE_ENV || 'development'}`, '.env'], // Try environment-specific first, then fallback to .env
       validate: validateEnvironment,
     }),
     PrismaModule,
+    NotificationModule.forRoot(),
     UserModule,
     AuthModule,
     EmailModule,
     PasswordModule,
     RefreshTokenModule,
     OtpAndSecretModule,
-    PostModule,
+    ResidenceModule,
+    KycModule,
     // MinioModule
   ],
   controllers: [AppController],

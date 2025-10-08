@@ -5,7 +5,9 @@ import {
   IDatabaseEnvConfig,
   IEmailEnvConfig,
   IMinioEnvConfig,
+  INotificationEnvConfig,
 } from './types';
+import { notificationConfig } from './notification.config';
 
 const defaultExpiresIn = 604800;
 
@@ -46,4 +48,6 @@ export const productionModeEnv: IConfigNameSpacedEnvFactory = {
     accessKey: process.env.MINIO_ACCESS_KEY!,
     secretKey: process.env.MINIO_SECRET_KEY!,
   }),
+
+  notification: notificationConfig,
 };

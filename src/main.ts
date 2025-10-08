@@ -24,9 +24,9 @@ async function bootstrap(): Promise<void> {
  
   // Swagger 
   const config = new DocumentBuilder()
-    .setTitle('NestJS Starter Kit 🚀 API Documentation')
+    .setTitle('Maresi API Documentation')
     .setDescription(
-      '🏹👑 A starter kit for NestJS with Prisma, Passport, Zod, Swagger, and more. Built to be a solid foundation for YOUR next project 👑🏹.',
+      'This is the API documentation for the Maresi application.',
     )
     .setVersion('0.1')
     .addServer('http://localhost:3000/', 'Local environment')
@@ -43,7 +43,7 @@ async function bootstrap(): Promise<void> {
       operationsSorter: 'alpha',
       defaultModelsExpandDepth: -1,
       docExpansion: 'none',
-      filter: true,
+      filter: true, 
     },
     customCss: theme.getBuffer(SwaggerThemeNameEnum.NORD_DARK),
   });

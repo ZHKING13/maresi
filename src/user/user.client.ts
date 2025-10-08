@@ -15,9 +15,26 @@ export class UserClient {
   public async checkIfUserExistsByEmail(
     email: User['email'],
   ): Promise<boolean> {
+    if (!email) return false;
+
     const userExist = await this.prisma.user.count({
       where: {
         email: email.toLowerCase(),
+      },
+    });
+
+    return userExist === 1 ? true : false;
+  }
+
+  // Check if user exists by phone number
+  public async checkIfUserExistsByPhoneNumber(
+    phoneNumber: User['phoneNumber'],
+  ): Promise<boolean> {
+    if (!phoneNumber) return false;
+
+    const userExist = await this.prisma.user.count({
+      where: {
+        phoneNumber: phoneNumber,
       },
     });
 
@@ -31,16 +48,19 @@ export class UserClient {
     email,
     phoneNumber,
     dateOfBirth,
-  }: Pick<User, 'firstName' | 'lastName' | 'email' | 'phoneNumber' | 'dateOfBirth'>): Promise<User> {
+  }: Pick<User, 'firstName' | 'lastName'> & {
+    email?: string;
+    phoneNumber?: string;
+    dateOfBirth?: string;
+  }): Promise<User> {
     try {
       const user = await this.prisma.user.create({
         data: {
           firstName,
           lastName,
-          email: email.toLowerCase(),
-          phoneNumber, 
-          dateOfBirth,
-
+          email: email ? email.toLowerCase() : null,
+          phoneNumber: phoneNumber || null,
+          dateOfBirth: dateOfBirth || null,
         },
       });
 
@@ -48,23 +68,24 @@ export class UserClient {
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError) {
         if (e.code === 'P2002') {
+          const identifier = email || phoneNumber;
           return Promise.reject(
             new InternalServerErrorException(
-              `UserClient: user with email: ${email} already exists`,
+              `UserClient: user with identifier: ${identifier} already exists`,
             ),
           );
         }
 
         return Promise.reject(
           new InternalServerErrorException(
-            `UserClient: error occured while creating user with email: ${email} with error code: ${e.code}`,
+            `UserClient: error occurred while creating user with error code: ${e.code}`,
           ),
         );
       }
 
       return Promise.reject(
         new InternalServerErrorException(
-          `UserClient: error occured while creating user with email: ${email}`,
+          `UserClient: error occurred while creating user`,
         ),
       );
     }
@@ -74,9 +95,41 @@ export class UserClient {
   public async getUserByEmailOrNull(
     email: User['email'],
   ): Promise<User | null> {
+    if (!email) return null;
+
     return this.prisma.user.findUnique({
       where: {
         email: email.toLowerCase(),
+      },
+    });
+  }
+
+  // Get user by phone number or null
+  public async getUserByPhoneNumberOrNull(
+    phoneNumber: User['phoneNumber'],
+  ): Promise<User | null> {
+    if (!phoneNumber) return null;
+
+    return this.prisma.user.findUnique({
+      where: {
+        phoneNumber: phoneNumber,
+      },
+    });
+  }
+
+  // Get user by email or phone number or null
+  public async getUserByContactOrNull({
+    email,
+    phoneNumber,
+  }: {
+    email?: string;
+    phoneNumber?: string;
+  }): Promise<User | null> {
+    if (!email && !phoneNumber) return null;
+
+    return this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: email?.toLowerCase() }, { phoneNumber: phoneNumber }],
       },
     });
   }
@@ -139,7 +192,7 @@ export class UserClient {
       where: {
         AND: [
           {
-            email: email.toLowerCase(),
+            email: email!.toLowerCase(),
           },
           {
             NOT: {
@@ -194,6 +247,36 @@ export class UserClient {
     }
   }
 
+  // Update user fields (nom, téléphone, etc.)
+  public async updateUserFieldsOrThrow(
+    userId: number,
+    data: Partial<
+      Pick<User, 'firstName' | 'lastName' | 'phoneNumber' | 'dateOfBirth'>
+    >,
+  ): Promise<User> {
+    try {
+      const user = await this.prisma.user.update({
+        where: { id: userId },
+        data,
+      });
+      if (!user) {
+        throw new InternalServerErrorException(
+          'UserClient: Failed to update user fields',
+        );
+      }
+      return user;
+    } catch (e) {
+      Logger.error(e, 'UserClient: updateUserFieldsOrThrow');
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        throw new InternalServerErrorException(
+          `UserClient: Failed to update user fields with error code ${e.code}`,
+        );
+      }
+      throw new InternalServerErrorException(
+        'UserClient: Failed to update user fields',
+      );
+    }
+  }
   // Get all users
   public async getAllUsers(): Promise<User[]> {
     return this.prisma.user.findMany();
@@ -211,9 +294,37 @@ export class UserClient {
         firstName: true,
         lastName: true,
         email: true,
-        image: true,
+        avatar: true,
         phoneNumber: true,
       },
     });
+  }
+  // Update user profile avatar
+  public async updateUserAvatar(
+    userId: User['id'],
+    avatarUrl: string,
+  ): Promise<User> {
+    try {
+      const user = await this.prisma.user.update({
+        where: { id: userId },
+        data: { avatar: avatarUrl },
+      });
+      if (!user) {
+        throw new InternalServerErrorException(
+          'UserClient: Failed to update user avatar',
+        );
+      }
+      return user;
+    } catch (e) {
+      Logger.error(e, 'UserClient: updateUserAvatar');
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        throw new InternalServerErrorException(
+          `UserClient: Failed to update user avatar with error code ${e.code}`,
+        );
+      }
+      throw new InternalServerErrorException(
+        'UserClient: Failed to update user avatar',
+      );
+    }
   }
 }

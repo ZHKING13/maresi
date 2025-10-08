@@ -11,6 +11,7 @@ export enum AUTH_PATHS {
   PUT_CHANGE_PASSWORD = 'change-password',
   PUT_CHANGE_EMAIL = 'change-email',
   POST_SEND_OTP_EMAIL = 'send-otp-email',
+  POST_SEND_OTP_CONTACT = 'send-otp-contact',
   POST_VERIFY_OTP = 'verify-otp',
   POST_RESET_PASSWORD = 'reset-password',
 }

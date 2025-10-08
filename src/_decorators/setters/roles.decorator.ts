@@ -2,12 +2,14 @@
 import { SetMetadata } from '@nestjs/common';
 import { ROLES_ENUM,  } from '@prisma/client';
 
-export type ALL_ROLES_ENUM = ROLES_ENUM ;
+export type ALL_ROLES_ENUM = ROLES_ENUM | 'HOST' | 'USER';
 
 // If you changed here make sure to change the (rolesHierarchy) in src/guards/roles.guard.ts
 export const ALL_ROLES: Record<ALL_ROLES_ENUM, ALL_ROLES_ENUM> = {
  
   ...ROLES_ENUM,
+  HOST: "HOST",
+  USER: "USER"
 };
 
 export const ROLES_KEY = 'required-roles';

@@ -11,6 +11,7 @@ import { PasswordModule } from 'src/password/password.module';
 import { EmailModule } from 'src/email/email.module';
 import { JwtVerifyEmailStrategy } from './strategies/jwt-verify-email.strategy';
 import { OtpAndSecretModule } from 'src/otp-and-secret/otp-and-secret.module';
+import { SmsModule } from 'src/sms/sms.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { OtpAndSecretModule } from 'src/otp-and-secret/otp-and-secret.module';
     PasswordModule,
     EmailModule,
     OtpAndSecretModule,
+    SmsModule,
     JwtModule.register({}),
   ],
   controllers: [AuthController],

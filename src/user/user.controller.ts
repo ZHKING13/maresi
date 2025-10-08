@@ -1,9 +1,10 @@
+
 import { USER_PATHS } from 'src/_paths/user';
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, UseInterceptors, UploadedFile, Patch, HttpCode, HttpStatus } from '@nestjs/common';
 import { UserService } from './user.service';
 import { User } from '@prisma/client';
 import { IApiResponse } from 'src/_validators/global/global.model';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { CustomSwaggerDecorator } from 'src/_decorators/setters/swagger.decorator';
 import { GlobalIdParamDto } from 'src/_validators/global/global.dto';
 import { IGetUserByIdResponse } from 'src/_validators/user/user.model';
@@ -12,6 +13,7 @@ import { GetUserByIdResponseDto } from 'src/_validators/user/user.dto';
 import { ALL_ROLES, CustomRole } from 'src/_decorators/setters/roles.decorator';
 import { RolesGuard } from 'src/_guards/roles.guard';
 import { PublicEndpoint } from 'src/_decorators/setters/publicEndpoint.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags(USER_PATHS.PATH_PREFIX)
 @UseGuards(RolesGuard)
@@ -61,4 +63,36 @@ export class UserController {
       data: await this.userService.getUserById(id),
     };
   }
+
+  @CustomSwaggerDecorator({
+    summary: 'Upload user profile image',
+    paramDec: {
+      paramName: 'id',
+      paramSchema: GlobalIdParamDto.schema,
+    },
+    statusOK: true,
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @Patch(':id/photo')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadUserProfileImage(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const user = await this.userService.updateUserProfileImage(Number(id), file);
+    return { message: 'Profile image updated', data: user };
+  }
+  
 }

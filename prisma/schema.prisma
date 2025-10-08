@@ -1,3 +1,7 @@
+
+
+
+
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
@@ -17,29 +21,52 @@ model User {
   id          Int        @id @default(autoincrement())
   firstName   String
   lastName    String
-  email       String     @unique
-  phoneNumber String     @unique
+  email       String?     @unique
+  phoneNumber String?    @unique
   newEmail    String?
-  image       String?    @default("https://ui.shadcn.com/avatars/shadcn.jpg")
-  dateOfBirth String
+  avatar      String?    @default("https://ui.shadcn.com/avatars/shadcn.jpg")
+  dateOfBirth String?
   status      UserStatus @default(UNVERIFIED)
-enabledHost  Boolean    @default(false)
-  created DateTime @default(now())
-  updated DateTime @updatedAt
+  enabledHost Boolean    @default(false)
+
+  created     DateTime @default(now())
+  updated     DateTime @updatedAt
 
   administrator Administrator?
+  residences Residence[]
+  kycs Kyc[]
 }
+
 
 model Administrator {
   userId Int @id @unique
   roleId Int
-
   created DateTime @default(now()) @db.Timestamp(6)
   updated DateTime @updatedAt @db.Timestamp(6)
 
   role Role @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  validatedKycs Kyc[] @relation("AdminValidatedKycs")
 }
+model Kyc {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  adminId       Int?
+  status        IdentityStatus @default(PENDING)
+  documentType  String
+  documentUrl   String
+  selfieUrl     String?
+  rejectionReason String?
+  created       DateTime @default(now())
+  validatedAt   DateTime?
+
+  kycFor        KycFor  @default(USER)
+
+  user          User     @relation(fields: [userId], references: [id])
+  admin         Administrator? @relation("AdminValidatedKycs", fields: [adminId], references: [userId])
+}
+
+
 
 model Role {
   id       Int        @id @default(autoincrement())
@@ -75,7 +102,7 @@ model RefreshToken {
 model OTPAndSecret {
   id                    String @id @default(uuid()) @db.Uuid
   secret                String @db.VarChar(512)
-  phoneNumber                 String @unique
+  contact                 String @unique
   otpCodeRetryCount     Int    @default(0)
   otpSecretRequestCount Int    @default(0)
 
@@ -93,6 +120,108 @@ model Post {
   updated DateTime @updatedAt
 
 }
+model Residence {
+  id           Int      @id @default(autoincrement())
+  ownerId      Int
+  title        String
+  description  String
+  pricePerNight Float
+  lat          Float    
+  lng          Float  
+  residenceTypeId Int
+
+  isActive     Boolean  @default(true)
+  created      DateTime @default(now())
+  updated      DateTime @updatedAt
+
+  owner        User     @relation(fields: [ownerId], references: [id])
+  availabilities Availability[]
+type         ResidenceType @relation(fields: [residenceTypeId], references: [id])
+  rules ResidenceRule[]
+  specialConditions ResidenceSpecialCondition[]
+  media ResidenceMedia[]
+  equipments ResidenceEquipment[]
+
+}
+model ResidenceType {
+  id     Int     @id @default(autoincrement())
+  name   String  @db.VarChar(255)
+  icon   String? @db.VarChar(255)
+
+  residences Residence[]
+
+  @@map("residence_types")
+}
+model Rule {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  desc String @db.VarChar(512)
+  residences ResidenceRule[]
+}
+
+model SpecialCondition {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  residences ResidenceSpecialCondition[]
+}
+
+model Media {
+  id         Int    @id @default(autoincrement())
+  url        String
+  type       String // image, video, etc.
+  created    DateTime @default(now())
+  updated    DateTime @updatedAt
+  residences ResidenceMedia[]
+}
+
+model ResidenceRule {
+  residenceId Int
+  ruleId      Int
+  residence   Residence @relation(fields: [residenceId], references: [id])
+  rule        Rule      @relation(fields: [ruleId], references: [id])
+  @@id([residenceId, ruleId])
+}
+
+model ResidenceSpecialCondition {
+  residenceId Int
+  specialConditionId Int
+  residence   Residence @relation(fields: [residenceId], references: [id])
+  specialCondition SpecialCondition @relation(fields: [specialConditionId], references: [id])
+  @@id([residenceId, specialConditionId])
+}
+
+model ResidenceMedia {
+  residenceId Int
+  mediaId     Int
+  residence   Residence @relation(fields: [residenceId], references: [id])
+  media       Media     @relation(fields: [mediaId], references: [id])
+  @@id([residenceId, mediaId])
+
+}
+model Availability {
+  id          Int      @id @default(autoincrement())
+  residenceId Int
+  startDate   DateTime
+  endDate     DateTime
+  created     DateTime @default(now())
+  updated     DateTime @updatedAt
+
+  residence   Residence @relation(fields: [residenceId], references: [id])
+}
+model Equipment {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  icon String? @db.VarChar(255)
+  residences ResidenceEquipment[]
+}
+
+model ResidenceEquipment {
+  residenceId Int
+  equipmentId Int
+  residence   Residence @relation(fields: [residenceId], references: [id])
+  equipment   Equipment @relation(fields: [equipmentId], references: [id])
+  @@id([residenceId, equipmentId])
+}
 
 enum UserStatus {
   ACTIVE
@@ -106,6 +235,20 @@ enum ROLES_ENUM {
   ADMIN
   MODERATOR
   SUPPORT
+}
+enum IdentityStatus {
+  PENDING
+  VALIDATED
+  REJECTED
+}
+enum KYC_STATUS {
+  PENDING
+  APPROVED
+  REJECTED
+}
+enum KycFor {
+  USER
+  HOST
 }
 
 

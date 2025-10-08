@@ -1,4 +1,7 @@
 import { User } from '@prisma/client';
 
 export interface IGetUserByIdResponse
-  extends Pick<User, 'firstName' | 'lastName' | 'email' | 'image'|'phoneNumber' > {}
+  extends Pick<
+    User,
+    'firstName' | 'lastName' | 'email' | 'avatar' | 'phoneNumber'
+  > {}

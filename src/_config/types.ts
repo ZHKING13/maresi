@@ -9,6 +9,8 @@ export enum CONFIG_NAME_SPACED {
   DATABASE = 'databaseenv',
   EMAIL = 'emailenv',
   MINIO = 'minioenv',
+  SMS = 'smsenv',
+  NOTIFICATION = 'notificationenv',
 }
 
 export enum CUSTOM_PROVIDERS_INJECTION_TOKENS {
@@ -50,10 +52,46 @@ export interface IMinioEnvConfig {
   secretKey: string;
 }
 
+export interface INotificationEnvConfig {
+  email: {
+    enabled: boolean;
+    provider: string;
+    config: {
+      host: string;
+      port: number;
+      secure: boolean;
+      user: string;
+      password: string;
+      from: string;
+    };
+  };
+  sms: {
+    enabled: boolean;
+    provider: string;
+    config: {
+      accountSid: string;
+      authToken: string;
+      fromNumber: string;
+      apiKey: string;
+      apiSecret: string;
+    };
+  };
+  fcm: {
+    enabled: boolean;
+    serviceAccountPath: string;
+    projectId: string;
+  };
+  pushInApp: {
+    enabled: boolean;
+    maxRetentionDays: number;
+  };
+}
+
 export interface IConfigNameSpacedEnvFactory {
   app: () => IAppEnvConfig;
   jwtAndPassport: () => IJwtAndPassportEnvConfig;
   database: () => IDatabaseEnvConfig;
   email: () => IEmailEnvConfig;
   minio: () => IMinioEnvConfig;
+  notification: () => INotificationEnvConfig;
 }

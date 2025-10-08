@@ -50,5 +50,22 @@ export const nameSpacedMinioConfig = registerAs(
   envConfigBasedOnMode.minio,
 );
 
+export const nameSpacedSmsConfig = registerAs(CONFIG_NAME_SPACED.SMS, () => ({
+  enabled: process.env.SMS_ENABLED === 'true' || false,
+  // Twilio credentials
+  accountSid: process.env.TWILIO_ACCOUNT_SID || '',
+  authToken: process.env.TWILIO_AUTH_TOKEN || '',
+  fromNumber: process.env.TWILIO_FROM_NUMBER || '',
+}));
+
+export const nameSpacedNotificationConfig = registerAs(
+  CONFIG_NAME_SPACED.NOTIFICATION,
+  envConfigBasedOnMode.notification,
+);
+
 // Export constants for use in other modules
 export * from './constants';
+// Export SMS config
+export * from './sms.config';
+// Export notification config
+export * from './notification.config';

@@ -25,6 +25,7 @@ import {
   SendVerifyNewEmailBodyDto,
   VerifyOTPBodyDto,
 } from 'src/_validators/auth/auth.dto';
+import { SendOtpContactBodyDto } from 'src/_validators/auth/send-otp-contact.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { CurrentSystemUser } from 'src/_decorators/getters/currentSystemUser.decorator';
 import type {
@@ -271,14 +272,32 @@ export class AuthController {
   @Post(AUTH_PATHS.POST_VERIFY_OTP)
   @HttpCode(HttpStatus.OK)
   public async verifyOtp(
-    @Body() { otpCode, phoneNumber }: VerifyOTPBodyDto,
+    @Body() { otpCode, contact }: VerifyOTPBodyDto,
   ): Promise<IApiResponse<boolean>> {
     return {
       message: 'success',
       data: await this.authService.verifyOtpOrThrow({
         otpCode,
-        phoneNumber,
+        contact,
       }),
+    };
+  }
+
+  // Send otp to contact (email or phone)
+  @CustomSwaggerDecorator({
+    summary: 'Send OTP to contact (email or phone)',
+    statusOK: true,
+  })
+  @PublicEndpoint()
+  @Post(AUTH_PATHS.POST_SEND_OTP_CONTACT)
+  @HttpCode(HttpStatus.OK)
+  public async sendOtpContact(
+    @Body() sendOtpContactBody: SendOtpContactBodyDto,
+  ): Promise<IApiResponse<string>> {
+    await this.authService.sendOtpContact(sendOtpContactBody);
+
+    return {
+      message: 'OTP sent successfully',
     };
   }
 

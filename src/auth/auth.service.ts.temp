@@ -1,0 +1,162 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import {
+  ILoginBody,
+  ILoginUserResponse,
+  IRefreshTokenResponse,
+  IRegisterUserBody,
+  IResetPasswordBody,
+  ISendOtpEmailBody,
+  ITokens,
+  VerifyEmailJwtPayload,
+} from 'src/_validators/auth/auth.model';
+import { UserService } from 'src/user/user.service';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { jwtConstants } from './constants';
+import { RefreshTokenService } from 'src/refresh-token/refresh-token.service';
+import { User, UserStatus } from '@prisma/client';
+import { PasswordService } from 'src/password/password.service';
+import { HashService } from 'src/_utils/hash.util';
+import { AUTH_PATHS } from 'src/_paths/auth';
+import { EmailService } from 'src/email/email.service';
+import verifyEmailEdm from 'src/email/assets/verifyEmailTemplate';
+import { OtpAndSecretService } from 'src/otp-and-secret/otp-and-secret.service';
+import { authenticator } from 'otplib';
+import resetPasswordEdm from 'src/email/assets/resetPasswordEmailTemplate';
+import { SmsService } from 'src/sms/sms.service';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly userService: UserService,
+    private readonly jwtService: JwtService,
+    private readonly refreshTokenService: RefreshTokenService,
+    private readonly passwordService: PasswordService,
+    private readonly emailService: EmailService,
+    private readonly otpAndSecretService: OtpAndSecretService,
+    private readonly smsService: SmsService,
+  ) {}
+
+  // Register
+  public async register(registerPayload: IRegisterUserBody): Promise<User> {
+    const createdUser = await this.userService.createUserOrThrow({
+      firstName: registerPayload.firstName,
+      lastName: registerPayload.lastName,
+      email: registerPayload.email,
+      password: registerPayload.password,
+      phoneNumber: registerPayload.phoneNumber,
+      dateOfBirth: registerPayload.dateOfBirth,
+    });
+
+    Logger.log(`AuthService: user with id: ${createdUser.id} created`);
+
+    // Envoyer la vérification via email ou SMS selon la méthode fournie
+    if (createdUser.email) {
+      await this.sendVerifyEmailForNewUser({
+        email: createdUser.email,
+      });
+    } else if (createdUser.phoneNumber) {
+      await this.sendVerifySmsForNewUser({
+        phoneNumber: createdUser.phoneNumber,
+      });
+    }
+
+    return createdUser;
+  }
+
+  // Login
+  public async login(loginPayload: ILoginBody): Promise<ILoginUserResponse> {
+    // Vérifier si c'est un email ou un numéro de téléphone
+    let user: User | null = null;
+    
+    if (loginPayload.email.includes('@')) {
+      // C'est un email
+      user = await this.userService.getUserByEmailOrNull(loginPayload.email);
+    } else {
+      // C'est probablement un numéro de téléphone
+      user = await this.userService.getUserByPhoneNumberOrNull(loginPayload.email);
+    }
+
+    if (!user) {
+      Logger.error(`user with identifier: ${loginPayload.email} not found`);
+      return Promise.reject(new UnauthorizedException(`AuthService: login1`));
+    }
+
+    // get user password
+    const userPassword = await this.passwordService.getUserPasswordbyIdOrNull(
+      user.id,
+    );
+
+    if (!userPassword) {
+      Logger.error(`user password with id: ${user.id} not found`);
+      return Promise.reject(new UnauthorizedException(`AuthService: login2`));
+    }
+
+    const passwordMatches = HashService.compareHash({
+      storedHash: userPassword.hash,
+      storedSalt: userPassword.salt,
+      tobeHashed: loginPayload.password,
+    });
+
+    if (!passwordMatches) {
+      Logger.error(`user password with id: ${user.id} not match`);
+      return Promise.reject(new UnauthorizedException(`AuthService: login3`));
+    }
+
+    // Générer le token avec l'identifiant approprié (email ou téléphone)
+    const contactIdentifier = user.email || user.phoneNumber;
+    const tokens = await this.generateTokens(user.id, contactIdentifier);
+
+    await this.refreshTokenService.createOrUpdateRefreshToken({
+      userId: user.id,
+      newRt: tokens.refreshToken,
+    });
+
+    await this.userService.updateUserStatusToActive(user.id);
+
+    return {
+      user,
+      tokens,
+    };
+  }
+
+  // Logout
+  public async logout(userId: number): Promise<string> {
+    await this.refreshTokenService.deleteRefreshTokenByUserId(userId);
+    return `Logged out successfully`;
+  }
+
+  // Méthode pour envoyer un OTP par SMS
+  private async sendVerifySmsForNewUser({
+    phoneNumber,
+  }: {
+    phoneNumber: string;
+  }): Promise<string> {
+    const otpCode = this.generateOTP();
+    
+    // Stocker l'OTP pour validation ultérieure
+    await this.otpAndSecretService.createOtpForContact({
+      contact: phoneNumber,
+      otp: otpCode,
+      expireInMinutes: 10, // Expiration dans 10 minutes
+    });
+    
+    // Envoyer l'OTP par SMS
+    await this.smsService.sendVerificationCode(phoneNumber, otpCode);
+    
+    return `Verification SMS sent successfully to ${phoneNumber}`;
+  }
+
+  // Générer un code OTP à 6 chiffres
+  private generateOTP(): string {
+    const otpCode = Math.floor(100000 + Math.random() * 900000);
+    return otpCode.toString().padStart(6, '0');
+  }

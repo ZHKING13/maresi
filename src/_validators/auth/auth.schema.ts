@@ -13,7 +13,7 @@ import {
   ISendVerifyNewEmailBody,
   IVerifyOTPBody,
 } from './auth.model';
-import { UserStatus } from '@prisma/client';
+import { UserStatus, IdentityStatus } from '@prisma/client';
 
 export const registerUserBodySchema: z.ZodSchema<IRegisterUserBody> = z
   .object({
@@ -25,7 +25,7 @@ export const registerUserBodySchema: z.ZodSchema<IRegisterUserBody> = z
       .string()
       .min(3, 'must be at least 3 characters')
       .max(12, 'must not exceed 12 characters'),
-    email: z.string().email(),
+    email: z.string().email().optional(),
     password: z
       .string()
       .min(8, 'must be at least 8 characters')
@@ -33,8 +33,14 @@ export const registerUserBodySchema: z.ZodSchema<IRegisterUserBody> = z
     phoneNumber: z
       .string()
       .min(10, 'must be at least 10 characters')
-      .max(15, 'must not exceed 15 characters'),
-    dateOfBirth: z.coerce.date(),
+      .max(15, 'must not exceed 15 characters')
+      .optional(),
+    dateOfBirth: z.string().optional(),
+  })
+  .refine((data) => data.email || data.phoneNumber, {
+    message:
+      'Au moins une méthode de contact (email ou téléphone) doit être fournie',
+    path: ['contact'],
   })
   .strip();
 
@@ -60,8 +66,12 @@ export const registerUserResponseSchema: z.ZodSchema<IRegisterUserResponse> =
     email: z.string().email(),
     newEmail: z.string().nullable(),
     phoneNumber: z.string(),
-    image: z.string().nullable(),
-    dateOfBirth: z.date(),
+    avatar: z.string().nullable(),
+    identityStatus: z.nativeEnum(IdentityStatus),
+    identityDocumentUrl: z.string().nullable(),
+    identityDocumentType: z.string().nullable(),
+    selfieUrl: z.string().nullable(),
+    dateOfBirth: z.string(),
     enabledHost: z.boolean(),
     status: z.enum(UserStatus),
     created: z.date(),
@@ -77,8 +87,12 @@ export const loginUserResponseSchema: z.ZodSchema<ILoginUserResponse> =
       email: z.string().email(),
       newEmail: z.string().nullable(),
       phoneNumber: z.string(),
-      image: z.string().nullable(),
-      dateOfBirth: z.date(),
+      avatar: z.string().nullable(),
+      identityStatus: z.nativeEnum(IdentityStatus),
+      identityDocumentUrl: z.string().nullable(),
+      identityDocumentType: z.string().nullable(),
+      selfieUrl: z.string().nullable(),
+      dateOfBirth: z.string(),
       enabledHost: z.boolean(),
       status: z.enum(UserStatus),
       created: z.date(),
@@ -100,8 +114,12 @@ export const refreshTokenResponseSchema: z.ZodSchema<IRefreshTokenResponse> =
       phoneNumber: z.string(),
       email: z.email(),
       newEmail: z.string().nullable(),
-      image: z.string().nullable(),
-      dateOfBirth: z.date(),
+      avatar: z.string().nullable(),
+      identityStatus: z.nativeEnum(IdentityStatus),
+      identityDocumentUrl: z.string().nullable(),
+      identityDocumentType: z.string().nullable(),
+      selfieUrl: z.string().nullable(),
+      dateOfBirth: z.string(),
       enabledHost: z.boolean(),
       status: z.enum(UserStatus),
       created: z.date(),
@@ -180,10 +198,7 @@ export const changePasswordBodySchema: z.ZodSchema<IChangePasswordBody> = z
 // Verify OTP schema
 export const verifyOTPSchema: z.ZodSchema<IVerifyOTPBody> = z
   .object({
-    phoneNumber: z
-      .string()
-      .email()
-      .transform((value) => value.toLowerCase()),
+    contact: z.string().min(1, 'Le contact ne peut pas être vide'),
     otpCode: z.number(),
   })
   .strip();
@@ -196,9 +211,8 @@ export const resetPasswordSchema: z.ZodSchema<IResetPasswordBody> = z
       .email()
       .transform((value) => value.toLowerCase()),
     otpCode: z.number().min(4, 'must be at least 4 characters'),
-    phoneNumber: z.string().min(10, 'must be at least 10 characters'),
     newPassword: z.string().min(8, 'must be at least 8 characters'),
-    confirmNewPassword: z.string().min(8, 'musr be at least 8 characters'),
+    confirmNewPassword: z.string().min(8, 'must be at least 8 characters'),
   })
   .superRefine((val, ctx) => {
     // first issue
