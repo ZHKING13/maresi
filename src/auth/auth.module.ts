@@ -12,6 +12,8 @@ import { EmailModule } from 'src/email/email.module';
 import { JwtVerifyEmailStrategy } from './strategies/jwt-verify-email.strategy';
 import { OtpAndSecretModule } from 'src/otp-and-secret/otp-and-secret.module';
 import { SmsModule } from 'src/sms/sms.module';
+import { WalletModule } from 'src/wallet/wallet.module';
+import { forwardRef } from '@nestjs/common';
 
 @Module({
   imports: [
@@ -22,6 +24,7 @@ import { SmsModule } from 'src/sms/sms.module';
     EmailModule,
     OtpAndSecretModule,
     SmsModule,
+    forwardRef(() => WalletModule),
     JwtModule.register({}),
   ],
   controllers: [AuthController],

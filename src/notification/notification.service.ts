@@ -14,6 +14,7 @@ import { SmsNotificationProvider } from './providers/sms-notification.provider';
 import { FcmNotificationProvider } from './providers/fcm-notification.provider';
 import { PushInAppNotificationProvider } from './providers/push-inapp-notification.provider';
 import { NotificationTemplateService } from './templates/notification-template.service';
+import { NotificationLogService } from './services/notification-log.service';
 import { InAppNotification } from './interfaces';
 
 @Injectable()
@@ -25,6 +26,7 @@ export class NotificationService {
   constructor(
     private configService: ConfigService,
     private templateService: NotificationTemplateService,
+    private logService: NotificationLogService,
     private emailProvider: EmailNotificationProvider,
     private smsProvider: SmsNotificationProvider,
     private fcmProvider: FcmNotificationProvider,
@@ -72,7 +74,16 @@ export class NotificationService {
       this.logger.debug(
         `Sending ${type} notification to ${recipients.length} recipients`,
       );
+
       const result = await provider.send(payload);
+
+      // Enregistrer le log de la notification
+      try {
+        await this.logService.createLog(payload, result);
+      } catch (logError) {
+        this.logger.warn(`Failed to log notification: ${logError.message}`);
+        // Ne pas faire échouer la notification si le logging échoue
+      }
 
       if (result.success) {
         this.logger.log(
@@ -87,10 +98,23 @@ export class NotificationService {
       return result;
     } catch (error) {
       this.logger.error(`Error sending ${type} notification`, error);
-      return {
+
+      const failedResult = {
         success: false,
         error: error.message,
+        timestamp: new Date(),
       };
+
+      // Enregistrer aussi les échecs
+      try {
+        await this.logService.createLog(payload, failedResult);
+      } catch (logError) {
+        this.logger.warn(
+          `Failed to log failed notification: ${logError.message}`,
+        );
+      }
+
+      return failedResult;
     }
   }
 
@@ -359,6 +383,51 @@ export class NotificationService {
       type,
       enabled: provider.isEnabled,
     }));
+  }
+
+  /**
+   * ===== MÉTHODES DE LOGGING =====
+   */
+
+  /**
+   * Obtenir les logs des notifications
+   */
+  async getNotificationLogs(
+    query: import('./interfaces/notification.interface').INotificationLogQuery,
+  ) {
+    return this.logService.getLogs(query);
+  }
+
+  /**
+   * Obtenir les statistiques des notifications
+   */
+  async getNotificationStats(startDate?: Date, endDate?: Date) {
+    return this.logService.getStats(startDate, endDate);
+  }
+
+  /**
+   * Nettoyer les anciens logs
+   */
+  async cleanupOldLogs(): Promise<void> {
+    return this.logService.cleanupOldLogs();
+  }
+
+  /**
+   * Obtenir les paramètres de rétention
+   */
+  async getRetentionSettings() {
+    return this.logService.getRetentionSettings();
+  }
+
+  /**
+   * Mettre à jour les paramètres de rétention
+   */
+  async updateRetentionSettings(
+    settings: Partial<
+      import('./interfaces/notification.interface').IRetentionSettings
+    >,
+  ) {
+    return this.logService.updateRetentionSettings(settings);
   }
 
   private initializeProviders(): void {

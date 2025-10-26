@@ -72,4 +72,13 @@ export const notificationConfig = () => ({
     enabled: process.env.PUSH_IN_APP_ENABLED !== 'false', // Activé par défaut
     maxRetentionDays: parseInt(process.env.NOTIFICATION_RETENTION_DAYS || '30'),
   },
+  logging: {
+    enabled: process.env.NOTIFICATION_LOGGING_ENABLED !== 'false', // Activé par défaut
+    retentionDays: parseInt(
+      process.env.NOTIFICATION_LOG_RETENTION_DAYS || '90',
+    ),
+    cleanupInterval: parseInt(
+      process.env.NOTIFICATION_LOG_CLEANUP_INTERVAL || '24', // heures
+    ),
+  },
 });

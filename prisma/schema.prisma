@@ -35,6 +35,12 @@ model User {
   administrator Administrator?
   residences Residence[]
   kycs Kyc[]
+  notificationLogs NotificationLog[]
+  reviews Review[]
+  reviewResponses ReviewResponse[]
+  payments Payment[]
+  wallet Wallet?
+  walletTransactions WalletTransaction[]
 }
 
 
@@ -47,6 +53,8 @@ model Administrator {
   role Role @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   validatedKycs Kyc[] @relation("AdminValidatedKycs")
+  moderatedReviews Review[] @relation("ModeratedReviews")
+  moderatedResponses ReviewResponse[] @relation("ModeratedResponses")
 }
 model Kyc {
   id            Int      @id @default(autoincrement())
@@ -141,6 +149,7 @@ type         ResidenceType @relation(fields: [residenceTypeId], references: [id]
   specialConditions ResidenceSpecialCondition[]
   media ResidenceMedia[]
   equipments ResidenceEquipment[]
+  reviews Review[]
 
 }
 model ResidenceType {
@@ -223,6 +232,89 @@ model ResidenceEquipment {
   @@id([residenceId, equipmentId])
 }
 
+model Review {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  residenceId Int
+  rating      Int      // Note de 1 à 5 étoiles
+  comment     String?  @db.Text
+  
+  // Critères détaillés (optionnels)
+  cleanlinessRating    Int? // Propreté
+  locationRating       Int? // Emplacement
+  valueForMoneyRating  Int? // Rapport qualité/prix
+  serviceRating        Int? // Service/Communication
+  
+  // Statut et modération
+  status      ReviewStatus @default(PUBLISHED)
+  moderatorId Int?
+  moderationNote String?
+  
+  created     DateTime @default(now())
+  updated     DateTime @updatedAt
+
+  // Relations
+  user        User @relation(fields: [userId], references: [id])
+  residence   Residence @relation(fields: [residenceId], references: [id])
+  moderator   Administrator? @relation("ModeratedReviews", fields: [moderatorId], references: [userId])
+  responses   ReviewResponse[]
+  
+  // Index et contraintes
+  @@unique([userId, residenceId]) // Un seul avis par user/residence
+  @@index([residenceId])
+  @@index([rating])
+  @@index([status])
+}
+
+model ReviewResponse {
+  id        Int      @id @default(autoincrement())
+  reviewId  Int
+  userId    Int
+  content   String   @db.Text
+  
+  // Type de répondant
+  responseType ResponseType @default(CLIENT)
+  
+  // Statut et modération
+  status      ResponseStatus @default(PUBLISHED)
+  moderatorId Int?
+  moderationNote String?
+  
+  created   DateTime @default(now())
+  updated   DateTime @updatedAt
+
+  // Relations
+  review    Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user      User @relation(fields: [userId], references: [id])
+  moderator Administrator? @relation("ModeratedResponses", fields: [moderatorId], references: [userId])
+  
+  // Index
+  @@index([reviewId])
+  @@index([userId])
+  @@index([responseType])
+  @@index([created])
+}
+
+enum ReviewStatus {
+  PENDING     // En attente de modération
+  PUBLISHED   // Publié et visible
+  REJECTED    // Rejeté par modération
+  HIDDEN      // Masqué temporairement
+}
+
+enum ResponseType {
+  CLIENT      // Réponse d'un autre client
+  OWNER       // Réponse du propriétaire
+  ADMIN       // Réponse d'un administrateur
+}
+
+enum ResponseStatus {
+  PENDING     // En attente de modération
+  PUBLISHED   // Publié et visible
+  REJECTED    // Rejeté par modération
+  HIDDEN      // Masqué temporairement
+}
+
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -249,6 +341,301 @@ enum KYC_STATUS {
 enum KycFor {
   USER
   HOST
+}
+
+enum NotificationType {
+  EMAIL
+  SMS
+  FCM
+  PUSH_IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  READ
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model NotificationLog {
+  id                String              @id @default(uuid()) @db.Uuid
+  type              NotificationType
+  status            NotificationStatus  @default(PENDING)
+  priority          NotificationPriority @default(MEDIUM)
+  
+  // Recipient info
+  recipientUserId   Int?
+  recipientEmail    String?
+  recipientPhone    String?
+  recipientName     String?
+  
+  // Notification content
+  subject           String?
+  content           String              @db.Text
+  templateId        String?
+  variables         Json?
+  
+  // Provider response
+  messageId         String?
+  providerResponse  Json?
+  errorMessage      String?
+  
+  // Timestamps
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  expiresAt         DateTime?
+  
+  // Metadata
+  metadata          Json?
+  retryCount        Int                 @default(0)
+  maxRetries        Int                 @default(3)
+  
+  created           DateTime            @default(now()) @db.Timestamp(6)
+  updated           DateTime            @updatedAt @db.Timestamp(6)
+  
+  // Relations
+  user              User?               @relation(fields: [recipientUserId], references: [id])
+  
+  @@index([type, status])
+  @@index([recipientUserId])
+  @@index([created])
+  @@index([expiresAt])
+}
+
+model NotificationSettings {
+  id                    Int      @id @default(autoincrement())
+  key                   String   @unique
+  value                 String
+  description           String?
+  category              String   @default("general")
+  isEditable            Boolean  @default(true)
+  
+  created               DateTime @default(now()) @db.Timestamp(6)
+  updated               DateTime @updatedAt @db.Timestamp(6)
+}
+
+// ========== PAYMENT SYSTEM ==========
+
+model Payment {
+  id                    Int                 @id @default(autoincrement())
+  
+  // Identifiants
+  transactionId         String              @unique  // ID généré par notre système
+  cinetPayTransactionId String?             @unique  // ID retourné par CinetPay
+  
+  // Informations de base
+  amount                Decimal             @db.Decimal(10,2)
+  currency              PaymentCurrency     @default(XOF)
+  description           String?
+  
+  // Statut et type
+  status                PaymentStatus       @default(PENDING)
+  paymentMethod         PaymentMethod
+  provider              PaymentProvider?    // Orange Money, MTN, Moov, etc.
+  
+  // Informations utilisateur
+  userId                Int?
+  customerName          String?
+  customerEmail         String?
+  customerPhone         String?
+  
+  // Informations de paiement
+  notifyUrl             String?             // URL de callback
+  returnUrl             String?             // URL de retour après paiement
+  channels              String?             // Canaux de paiement autorisés
+  
+  // Données CinetPay
+  cinetPayData          Json?               // Réponse complète de CinetPay
+  paymentUrl            String?             // URL de paiement générée
+  
+  // Métadonnées et suivi
+  metadata              Json?               // Données supplémentaires
+  failureReason         String?
+  
+  // Timestamps
+  initiatedAt           DateTime            @default(now())
+  paidAt                DateTime?
+  failedAt              DateTime?
+  expiredAt             DateTime?
+  
+  created               DateTime            @default(now()) @db.Timestamp(6)
+  updated               DateTime            @updatedAt @db.Timestamp(6)
+  
+  // Relations
+  user                  User?               @relation(fields: [userId], references: [id])
+  webhooks              PaymentWebhook[]
+  
+  @@index([status])
+  @@index([userId])
+  @@index([transactionId])
+  @@index([cinetPayTransactionId])
+  @@index([created])
+}
+
+model PaymentWebhook {
+  id                    Int                 @id @default(autoincrement())
+  
+  // Identifiants
+  paymentId             Int?
+  cinetPayTransactionId String?
+  
+  // Données du webhook
+  eventType             String              // payment.successful, payment.failed, etc.
+  rawPayload            Json                // Payload complet du webhook
+  processed             Boolean             @default(false)
+  
+  // Métadonnées
+  ipAddress             String?
+  userAgent             String?
+  signature             String?             // Signature pour vérification
+  
+  // Timestamps
+  receivedAt            DateTime            @default(now())
+  processedAt           DateTime?
+  
+  created               DateTime            @default(now()) @db.Timestamp(6)
+  updated               DateTime            @updatedAt @db.Timestamp(6)
+  
+  // Relations
+  payment               Payment?            @relation(fields: [paymentId], references: [id])
+  
+  @@index([processed])
+  @@index([cinetPayTransactionId])
+  @@index([receivedAt])
+}
+
+// ========== ENUMS ==========
+
+enum PaymentStatus {
+  PENDING     // En attente de paiement
+  PROCESSING  // En cours de traitement
+  COMPLETED   // Paiement réussi
+  FAILED      // Paiement échoué
+  CANCELLED   // Paiement annulé
+  EXPIRED     // Paiement expiré
+  REFUNDED    // Paiement remboursé
+}
+
+enum PaymentMethod {
+  MOBILE_MONEY    // Mobile Money (Orange, MTN, Moov)
+  CREDIT_CARD     // Carte bancaire
+}
+
+enum PaymentProvider {
+  ORANGE_MONEY    // Orange Money
+  MTN_MONEY       // MTN Mobile Money
+  MOOV_MONEY      // Moov Money
+  VISA           // Carte Visa
+  MASTERCARD     // Carte MasterCard
+}
+
+enum PaymentCurrency {
+  XOF   // Franc CFA (Afrique de l'Ouest)
+  XAF   // Franc CFA (Afrique Centrale)
+  USD   // Dollar américain
+  EUR   // Euro
+}
+
+// ========== WALLET SYSTEM ==========
+
+model Wallet {
+  id                    Int                 @id @default(autoincrement())
+  userId                Int                 @unique
+  balance               Decimal             @default(0) @db.Decimal(15,2)
+  currency              PaymentCurrency     @default(XOF)
+  isActive              Boolean             @default(true)
+  isBlocked             Boolean             @default(false)
+  blockReason           String?
+  dailyLimit            Decimal?            @db.Decimal(15,2)
+  monthlyLimit          Decimal?            @db.Decimal(15,2)
+  maxBalance            Decimal?            @db.Decimal(15,2)
+  metadata              Json?
+  created               DateTime            @default(now()) @db.Timestamp(6)
+  updated               DateTime            @updatedAt @db.Timestamp(6)
+  lastTransactionAt     DateTime?           @db.Timestamp(6)
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions          WalletTransaction[]
+  
+  @@index([userId])
+  @@index([isActive, isBlocked])
+}
+
+model WalletTransaction {
+  id                    Int                     @id @default(autoincrement())
+  
+  // Identifiants
+  transactionId         String                  @unique  // ID unique généré
+  referenceId           String?                 // Référence externe (ex: ID paiement)
+  
+  // Informations wallet
+  walletId              Int
+  userId                Int
+  
+  // Transaction details
+  type                  WalletTransactionType
+  amount                Decimal                 @db.Decimal(15,2)
+  currency              PaymentCurrency         @default(XOF)
+  
+  // Soldes
+  balanceBefore         Decimal                 @db.Decimal(15,2)
+  balanceAfter          Decimal                 @db.Decimal(15,2)
+  
+  // Statut et description
+  status                WalletTransactionStatus @default(PENDING)
+  description           String?
+  category              String?                 // ex: "recharge", "payment", "refund", etc.
+  
+  // Métadonnées
+  metadata              Json?
+  
+  // Données de la source (paiement, admin, etc.)
+  sourceType            String?                 // "payment", "admin", "system", "transfer"
+  sourceId              String?                 // ID de la source
+  
+  // Informations de traitement
+  processedBy           Int?                    // ID de l'admin qui a traité (si applicable)
+  processedAt           DateTime?               @db.Timestamp(6)
+  failureReason         String?
+  
+  // Timestamps
+  created               DateTime                @default(now()) @db.Timestamp(6)
+  updated               DateTime                @updatedAt @db.Timestamp(6)
+  
+  // Relations
+  wallet                Wallet                  @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([walletId])
+  @@index([userId])
+  @@index([transactionId])
+  @@index([type, status])
+  @@index([created])
+  @@index([referenceId])
+}
+
+// ========== WALLET ENUMS ==========
+
+enum WalletTransactionType {
+  CREDIT      // Crédit (recharge, remboursement, etc.)
+  DEBIT       // Débit (paiement, frais, etc.)
+}
+
+enum WalletTransactionStatus {
+  PENDING     // En attente
+  COMPLETED   // Terminé avec succès
+  FAILED      // Échoué
+  CANCELLED   // Annulé
+  REVERSED    // Annulé/inversé
 }
 
 

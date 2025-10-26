@@ -63,6 +63,11 @@ export const nameSpacedNotificationConfig = registerAs(
   envConfigBasedOnMode.notification,
 );
 
+export const nameSpacedPaymentConfig = registerAs(
+  CONFIG_NAME_SPACED.PAYMENT,
+  envConfigBasedOnMode.payment,
+);
+
 // Export constants for use in other modules
 export * from './constants';
 // Export SMS config

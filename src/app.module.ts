@@ -27,12 +27,16 @@ import {
   nameSpacedDatabaseConfig,
   nameSpacedEmailConfig,
   nameSpacedNotificationConfig,
+  nameSpacedPaymentConfig,
 } from './_config';
 import { validateEnvironment } from './_utils/env-validation.util';
 import { MinioModule } from './minio/minio.module';
 import { ResidenceModule } from './residence/residence.module';
 import { KycModule } from './kyc/kyc.module';
 import { NotificationModule } from './notification/notification.module';
+import { ReviewModule } from './review/review.module';
+import { PaymentModule } from './payment/payment.module';
+import { WalletModule } from './wallet/wallet.module';
 
 @Module({
   imports: [
@@ -46,6 +50,7 @@ import { NotificationModule } from './notification/notification.module';
         nameSpacedNotificationConfig,
         nameSpacedDatabaseConfig,
         nameSpacedEmailConfig,
+        nameSpacedPaymentConfig,
       ],
 
       envFilePath: [`.env.${process.env.NODE_ENV || 'development'}`, '.env'], // Try environment-specific first, then fallback to .env
@@ -61,6 +66,9 @@ import { NotificationModule } from './notification/notification.module';
     OtpAndSecretModule,
     ResidenceModule,
     KycModule,
+    ReviewModule,
+    PaymentModule,
+    WalletModule,
     // MinioModule
   ],
   controllers: [AppController],

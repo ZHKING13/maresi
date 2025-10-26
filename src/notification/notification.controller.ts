@@ -43,6 +43,26 @@ interface SendMultiChannelDto {
   stopOnFirstSuccess?: boolean;
 }
 
+interface NotificationLogQueryDto {
+  userId?: number;
+  type?: NotificationType;
+  status?: string;
+  priority?: NotificationPriority;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  offset?: number;
+  sortBy?: 'created' | 'sentAt' | 'status';
+  sortOrder?: 'asc' | 'desc';
+}
+
+interface RetentionSettingsDto {
+  logRetentionDays: number;
+  cleanupInterval: number;
+  archiveOldLogs: boolean;
+  archiveAfterDays?: number;
+}
+
 @ApiTags('notifications')
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
@@ -240,5 +260,127 @@ export class NotificationController {
       dto.recipient,
       dto.loginLink,
     );
+  }
+
+  // ===== ENDPOINTS DE LOGGING ET BACKOFFICE =====
+
+  @Get('logs')
+  @ApiOperation({ summary: 'Obtenir les logs des notifications' })
+  @ApiResponse({ status: 200, description: 'Liste des logs de notifications' })
+  async getNotificationLogs(@Query() query: NotificationLogQueryDto) {
+    // Convertir les dates string en Date
+    const parsedQuery: any = { ...query };
+    if (query.startDate) parsedQuery.startDate = new Date(query.startDate);
+    if (query.endDate) parsedQuery.endDate = new Date(query.endDate);
+
+    return this.notificationService.getNotificationLogs(parsedQuery);
+  }
+
+  @Get('logs/stats')
+  @ApiOperation({ summary: 'Obtenir les statistiques des notifications' })
+  @ApiResponse({ status: 200, description: 'Statistiques des notifications' })
+  async getNotificationStats(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const start = startDate ? new Date(startDate) : undefined;
+    const end = endDate ? new Date(endDate) : undefined;
+    return this.notificationService.getNotificationStats(start, end);
+  }
+
+  @Post('logs/cleanup')
+  @ApiOperation({ summary: 'Nettoyer les anciens logs de notifications' })
+  @ApiResponse({ status: 200, description: 'Nettoyage effectué' })
+  async cleanupOldLogs() {
+    await this.notificationService.cleanupOldLogs();
+    return { message: 'Nettoyage des logs terminé' };
+  }
+
+  @Get('settings/retention')
+  @ApiOperation({ summary: 'Obtenir les paramètres de rétention' })
+  @ApiResponse({ status: 200, description: 'Paramètres de rétention actuels' })
+  async getRetentionSettings() {
+    return this.notificationService.getRetentionSettings();
+  }
+
+  @Put('settings/retention')
+  @ApiOperation({ summary: 'Mettre à jour les paramètres de rétention' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paramètres de rétention mis à jour',
+  })
+  async updateRetentionSettings(@Body() settings: RetentionSettingsDto) {
+    return this.notificationService.updateRetentionSettings(settings);
+  }
+
+  @Get('logs/user/:userId')
+  @ApiOperation({ summary: 'Obtenir les logs pour un utilisateur spécifique' })
+  @ApiResponse({
+    status: 200,
+    description: "Logs de notifications de l'utilisateur",
+  })
+  async getUserNotificationLogs(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Query() query: Omit<NotificationLogQueryDto, 'userId'>,
+  ) {
+    const parsedQuery: any = { ...query, userId };
+    if (query.startDate) parsedQuery.startDate = new Date(query.startDate);
+    if (query.endDate) parsedQuery.endDate = new Date(query.endDate);
+
+    return this.notificationService.getNotificationLogs(parsedQuery);
+  }
+
+  @Get('logs/export')
+  @ApiOperation({ summary: 'Exporter les logs au format CSV' })
+  @ApiResponse({
+    status: 200,
+    description: 'Export CSV des logs',
+    headers: {
+      'Content-Type': { description: 'text/csv' },
+      'Content-Disposition': {
+        description: 'attachment; filename=notification-logs.csv',
+      },
+    },
+  })
+  async exportLogs(
+    @Query() query: NotificationLogQueryDto,
+    // @Res() res: Response, // Décommentez si vous voulez gérer la réponse manuellement
+  ) {
+    const parsedQuery: any = { ...query };
+    if (query.startDate) parsedQuery.startDate = new Date(query.startDate);
+    if (query.endDate) parsedQuery.endDate = new Date(query.endDate);
+
+    const { logs } = await this.notificationService.getNotificationLogs({
+      ...parsedQuery,
+      limit: 10000, // Limite pour l'export
+    });
+
+    // Convertir en CSV
+    const csvHeader =
+      'ID,Type,Status,Priority,Recipient,Subject,Created,Sent,Error\n';
+    const csvData = logs
+      .map((log) =>
+        [
+          log.id,
+          log.type,
+          log.status,
+          log.priority,
+          log.recipientEmail ||
+            log.recipientPhone ||
+            log.recipientName ||
+            'N/A',
+          `"${(log.subject || '').replace(/"/g, '""')}"`, // Échapper les guillemets
+          log.created.toISOString(),
+          log.sentAt?.toISOString() || '',
+          `"${(log.errorMessage || '').replace(/"/g, '""')}"`,
+        ].join(','),
+      )
+      .join('\n');
+
+    return {
+      filename: `notification-logs-${new Date().toISOString().split('T')[0]}.csv`,
+      content: csvHeader + csvData,
+      contentType: 'text/csv',
+    };
   }
 }

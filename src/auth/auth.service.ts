@@ -33,6 +33,8 @@ import { OtpAndSecretService } from 'src/otp-and-secret/otp-and-secret.service';
 import { authenticator } from 'otplib';
 import resetPasswordEdm from 'src/email/assets/resetPasswordEmailTemplate';
 import { SmsService } from 'src/sms/sms.service';
+import { WalletService } from 'src/wallet/wallet.service';
+import { forwardRef, Inject } from '@nestjs/common';
 
 @Injectable()
 export class AuthService {
@@ -44,6 +46,8 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly otpAndSecretService: OtpAndSecretService,
     private readonly smsService: SmsService,
+    @Inject(forwardRef(() => WalletService))
+    private readonly walletService: WalletService,
   ) {}
 
   // Register
@@ -58,6 +62,17 @@ export class AuthService {
     });
 
     Logger.log(`AuthService: user with id: ${createdUser.id} created`);
+
+    // Créer automatiquement un wallet pour l'utilisateur
+    try {
+      await this.walletService.createWallet(createdUser.id);
+      Logger.log(`AuthService: wallet created for user ${createdUser.id}`);
+    } catch (error) {
+      Logger.warn(
+        `AuthService: failed to create wallet for user ${createdUser.id}: ${error.message}`,
+      );
+      // Ne pas faire échouer l'inscription si la création du wallet échoue
+    }
 
     // Envoyer la vérification via email ou SMS selon la méthode fournie
     if (createdUser.email) {
@@ -466,11 +481,9 @@ export class AuthService {
     contact,
     isEmail,
   }: ISendOtpContactBody): Promise<void> {
-    // Déterminer si c'est un email ou un numéro de téléphone
     const isEmailContact =
       isEmail !== undefined ? isEmail : contact.includes('@');
 
-    // Récupérer l'utilisateur par le bon moyen selon le type de contact
     const user = isEmailContact
       ? await this.userService.getUserByEmailOrNull(contact)
       : await this.userService.getUserByPhoneNumberOrNull(contact);
@@ -479,7 +492,6 @@ export class AuthService {
       return;
     }
 
-    // Récupérer le contact principal de l'utilisateur
     const userContact = isEmailContact
       ? contact
       : user.phoneNumber || user.email!;

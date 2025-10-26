@@ -6,6 +6,7 @@ import {
   IEmailEnvConfig,
   IMinioEnvConfig,
   INotificationEnvConfig,
+  IPaymentEnvConfig,
 } from './types';
 import { notificationConfig } from './notification.config';
 
@@ -50,4 +51,21 @@ export const productionModeEnv: IConfigNameSpacedEnvFactory = {
   }),
 
   notification: notificationConfig,
+
+  payment: (): IPaymentEnvConfig => ({
+    cinetpay: {
+      enabled: process.env.CINETPAY_ENABLED === 'true',
+      apiKey: process.env.CINETPAY_API_KEY!,
+      siteId: process.env.CINETPAY_SITE_ID!,
+      secretKey: process.env.CINETPAY_SECRET_KEY!,
+      baseUrl:
+        process.env.CINETPAY_BASE_URL || 'https://api-checkout.cinetpay.com',
+      version: process.env.CINETPAY_VERSION || 'v2',
+      webhookSecret: process.env.CINETPAY_WEBHOOK_SECRET!,
+      returnBaseUrl:
+        process.env.CINETPAY_RETURN_BASE_URL || process.env.FRONTEND_BASE_URL!,
+      notifyBaseUrl:
+        process.env.CINETPAY_NOTIFY_BASE_URL || process.env.BACKEND_BASE_URL!,
+    },
+  }),
 };

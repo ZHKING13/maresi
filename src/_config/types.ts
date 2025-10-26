@@ -11,6 +11,7 @@ export enum CONFIG_NAME_SPACED {
   MINIO = 'minioenv',
   SMS = 'smsenv',
   NOTIFICATION = 'notificationenv',
+  PAYMENT = 'paymentenv',
 }
 
 export enum CUSTOM_PROVIDERS_INJECTION_TOKENS {
@@ -87,6 +88,27 @@ export interface INotificationEnvConfig {
   };
 }
 
+export interface IPaymentEnvConfig {
+  cinetpay: {
+    enabled: boolean;
+    apiKey: string;
+    siteId: string;
+    secretKey: string;
+    baseUrl: string;
+    version: string;
+    webhookSecret: string;
+    returnBaseUrl: string;
+    notifyBaseUrl: string;
+  };
+  // Pour futurs providers
+  stripe?: {
+    enabled: boolean;
+    publicKey: string;
+    secretKey: string;
+    webhookSecret: string;
+  };
+}
+
 export interface IConfigNameSpacedEnvFactory {
   app: () => IAppEnvConfig;
   jwtAndPassport: () => IJwtAndPassportEnvConfig;
@@ -94,4 +116,5 @@ export interface IConfigNameSpacedEnvFactory {
   email: () => IEmailEnvConfig;
   minio: () => IMinioEnvConfig;
   notification: () => INotificationEnvConfig;
+  payment: () => IPaymentEnvConfig;
 }

@@ -112,4 +112,89 @@ export interface INotificationConfig {
     enabled: boolean;
     maxRetentionDays?: number;
   };
+  logging?: {
+    enabled: boolean;
+    retentionDays: number;
+    cleanupInterval: number; // en heures
+  };
+}
+
+// Interfaces pour le logging des notifications
+export interface INotificationLog {
+  id: string;
+  type: NotificationType;
+  status: NotificationStatus;
+  priority: NotificationPriority;
+
+  // Recipient info
+  recipientUserId?: number;
+  recipientEmail?: string;
+  recipientPhone?: string;
+  recipientName?: string;
+
+  // Notification content
+  subject?: string;
+  content: string;
+  templateId?: string;
+  variables?: Record<string, any>;
+
+  // Provider response
+  messageId?: string;
+  providerResponse?: Record<string, any>;
+  errorMessage?: string;
+
+  // Timestamps
+  scheduledAt?: Date;
+  sentAt?: Date;
+  deliveredAt?: Date;
+  readAt?: Date;
+  expiresAt?: Date;
+
+  // Metadata
+  metadata?: Record<string, any>;
+  retryCount: number;
+  maxRetries: number;
+
+  created: Date;
+  updated: Date;
+}
+
+export interface INotificationLogQuery {
+  userId?: number;
+  type?: NotificationType;
+  status?: NotificationStatus;
+  priority?: NotificationPriority;
+  startDate?: Date;
+  endDate?: Date;
+  limit?: number;
+  offset?: number;
+  sortBy?: 'created' | 'sentAt' | 'status';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface INotificationLogStats {
+  total: number;
+  byType: Record<NotificationType, number>;
+  byStatus: Record<NotificationStatus, number>;
+  byPriority: Record<NotificationPriority, number>;
+  successRate: number;
+  averageDeliveryTime?: number; // en minutes
+}
+
+export interface INotificationSettings {
+  id: number;
+  key: string;
+  value: string;
+  description?: string;
+  category: string;
+  isEditable: boolean;
+  created: Date;
+  updated: Date;
+}
+
+export interface IRetentionSettings {
+  logRetentionDays: number;
+  cleanupInterval: number; // en heures
+  archiveOldLogs: boolean;
+  archiveAfterDays?: number;
 }
