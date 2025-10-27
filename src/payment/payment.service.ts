@@ -29,11 +29,13 @@ import {
   validateAmountByProvider,
 } from '../_validators/payment';
 import { Decimal } from '@prisma/client/runtime/library';
+import { Inject, forwardRef } from '@nestjs/common';
 
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
   private readonly cinetPayConfig: ICinetPayConfig;
+  private bookingService: any; // BookingService sera injecté via setter pour éviter la dépendance circulaire
 
   constructor(
     private readonly prisma: PrismaService,
@@ -51,6 +53,13 @@ export class PaymentService {
     if (!paymentConfig.cinetpay.enabled) {
       this.logger.warn('CinetPay is disabled in configuration');
     }
+  }
+
+  /**
+   * Setter pour BookingService (évite la dépendance circulaire)
+   */
+  setBookingService(bookingService: any) {
+    this.bookingService = bookingService;
   }
 
   /**
@@ -595,18 +604,41 @@ export class PaymentService {
         rawPayload,
       );
 
-      // Vérifier si c'est un rechargement de wallet
-      if (
-        payment &&
-        payment.metadata &&
-        typeof payment.metadata === 'object' &&
-        'type' in payment.metadata &&
-        payment.metadata.type === 'WALLET_RECHARGE'
-      ) {
-        this.logger.log(
-          `Wallet recharge detected for payment ${payment.id}, will be processed by webhook handler`,
-        );
-        // La confirmation du wallet sera gérée par un event listener ou séparément
+      // Vérifier le type de paiement dans les métadonnées
+      if (payment && payment.metadata && typeof payment.metadata === 'object') {
+        const metadata = payment.metadata as any;
+
+        // Gérer le rechargement de wallet
+        if (metadata.type === 'WALLET_RECHARGE') {
+          this.logger.log(
+            `Wallet recharge detected for payment ${payment.id}, will be processed by webhook handler`,
+          );
+          // La confirmation du wallet sera gérée par un event listener ou séparément
+        }
+
+        // Gérer la confirmation de réservation
+        if (
+          metadata.type === 'booking_payment' &&
+          metadata.bookingId &&
+          this.bookingService
+        ) {
+          this.logger.log(
+            `Booking payment detected for booking ${metadata.bookingId}`,
+          );
+          try {
+            await this.bookingService.confirmBookingPayment(
+              metadata.bookingId,
+              payment.id,
+            );
+            this.logger.log(
+              `Booking ${metadata.bookingNumber} confirmed successfully`,
+            );
+          } catch (error) {
+            this.logger.error(
+              `Failed to confirm booking ${metadata.bookingId}: ${error.message}`,
+            );
+          }
+        }
       }
 
       return true;

@@ -41,6 +41,9 @@ model User {
   payments Payment[]
   wallet Wallet?
   walletTransactions WalletTransaction[]
+  bookings Booking[]
+
+  Favorie Favorite[]
 }
 
 
@@ -150,7 +153,11 @@ type         ResidenceType @relation(fields: [residenceTypeId], references: [id]
   media ResidenceMedia[]
   equipments ResidenceEquipment[]
   reviews Review[]
+  bookings Booking[]
 
+  ResidenceRoom ResidenceRoom[]
+
+  Favorie Favorite[]
 }
 model ResidenceType {
   id     Int     @id @default(autoincrement())
@@ -223,6 +230,35 @@ model Equipment {
   icon String? @db.VarChar(255)
   residences ResidenceEquipment[]
 }
+model ResidenceRoom {
+  id          Int       @id @default(autoincrement())
+  count       Int
+  residence   Residence @relation(fields: [residenceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  residenceId Int
+  room        Room      @relation(fields: [roomId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  roomId      Int
+
+  @@map("residence_rooms")
+}
+model Favorite {
+  id          Int       @id @default(autoincrement())
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId      Int
+  residence   Residence @relation(fields: [residenceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  residenceId Int
+
+  @@map("favorites")
+}
+model Room {
+  id         Int             @id @default(autoincrement())
+  name       String          @db.VarChar(255)
+  icon       String?         @db.VarChar(255)
+  residences ResidenceRoom[]
+
+  @@map("rooms")
+}
+
 
 model ResidenceEquipment {
   residenceId Int
@@ -309,10 +345,10 @@ enum ResponseType {
 }
 
 enum ResponseStatus {
-  PENDING     // En attente de modération
-  PUBLISHED   // Publié et visible
-  REJECTED    // Rejeté par modération
-  HIDDEN      // Masqué temporairement
+  PENDING     
+  PUBLISHED  
+  REJECTED    
+  HIDDEN      
 }
 
 enum UserStatus {
@@ -474,6 +510,7 @@ model Payment {
   // Relations
   user                  User?               @relation(fields: [userId], references: [id])
   webhooks              PaymentWebhook[]
+  booking               Booking?
   
   @@index([status])
   @@index([userId])
@@ -638,4 +675,91 @@ enum WalletTransactionStatus {
   REVERSED    // Annulé/inversé
 }
 
+// ========== BOOKING SYSTEM ==========
 
+model Booking {
+  id                    Int                      @id @default(autoincrement())
+  
+  // Identifiants
+  bookingNumber         String                   @unique  // Numéro de réservation généré
+  
+  // Informations de la réservation
+  userId                Int
+  residenceId           Int
+  
+  // Dates et personnes
+  checkInDate           DateTime
+  checkOutDate          DateTime
+  numberOfGuests        Int
+  numberOfNights        Int
+  
+  // Prix et paiement
+  pricePerNight         Decimal                  @db.Decimal(10,2)
+  totalPrice            Decimal                  @db.Decimal(10,2)
+  serviceFee            Decimal?                 @db.Decimal(10,2)  // Frais de service
+  finalPrice            Decimal                  @db.Decimal(10,2)  // Prix total avec frais
+  
+  // Statut
+  status                BookingStatus            @default(PENDING)
+  paymentStatus         BookingPaymentStatus     @default(UNPAID)
+  
+  // Paiement
+  paymentId             Int?                     @unique
+  paidAt                DateTime?
+  
+  // Annulation
+  cancelledAt           DateTime?
+  cancelledBy           Int?                     // userId qui a annulé
+  cancellationReason    String?
+  refundAmount          Decimal?                 @db.Decimal(10,2)
+  refundStatus          RefundStatus?
+  
+  // Notes et instructions
+  guestNotes            String?                  @db.Text  // Notes du client
+  hostNotes             String?                  @db.Text  // Notes de l'hôte
+  specialRequests       String?                  @db.Text
+  
+  // Métadonnées
+  metadata              Json?
+  
+  // Timestamps
+  created               DateTime                 @default(now()) @db.Timestamp(6)
+  updated               DateTime                 @updatedAt @db.Timestamp(6)
+  
+  // Relations
+  user                  User                     @relation(fields: [userId], references: [id])
+  residence             Residence                @relation(fields: [residenceId], references: [id])
+  payment               Payment?                 @relation(fields: [paymentId], references: [id])
+  
+  @@index([userId])
+  @@index([residenceId])
+  @@index([status])
+  @@index([checkInDate, checkOutDate])
+  @@index([bookingNumber])
+  @@map("bookings")
+}
+
+// ========== BOOKING ENUMS ==========
+
+enum BookingStatus {
+  PENDING             // En attente de paiement
+  CONFIRMED           // Confirmé et payé
+  CANCELLED           // Annulé
+  COMPLETED           // Séjour terminé
+  ONGOING             // Séjour en cours
+  NO_SHOW             // Client non présenté
+}
+
+enum BookingPaymentStatus {
+  UNPAID              // Non payé
+  PAID                // Payé
+  PARTIALLY_REFUNDED  // Partiellement remboursé
+  FULLY_REFUNDED      // Totalement remboursé
+}
+
+enum RefundStatus {
+  PENDING             // Remboursement en attente
+  PROCESSING          // En cours de traitement
+  COMPLETED           // Remboursé
+  FAILED              // Échec du remboursement
+}

@@ -37,6 +37,7 @@ import { NotificationModule } from './notification/notification.module';
 import { ReviewModule } from './review/review.module';
 import { PaymentModule } from './payment/payment.module';
 import { WalletModule } from './wallet/wallet.module';
+import { BookingModule } from './booking/booking.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { WalletModule } from './wallet/wallet.module';
     ReviewModule,
     PaymentModule,
     WalletModule,
+    BookingModule,
     // MinioModule
   ],
   controllers: [AppController],
